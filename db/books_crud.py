@@ -1,38 +1,32 @@
 from fastapi import HTTPException, status
 from .book_bases import BookIn, BookDb
+from sqlmodel import Session, select
 
-books = [
-    {"id": 0, "book": "The Great Gatsby", "writer": "F. Scott Fitzgerald"},
-    {"id": 1, "book": "The Lord of the Rings", "writer": "J. R. R. Tolkien"},
-    {"id": 2, "book": "Adventures of Huckleberry Finn", "writer": "Mark Twain"},
-]
 
-def create_book(book_in: BookIn):
-    new_id = len(books)
-    book = BookDb(**book_in.model_dump(), id=new_id)
-    books.append(book.model_dump())
-    return book
+def create_book(session: Session,book_in: BookIn):
+    b = BookDb.model_validate(book_in)
+    session.add(b)
+    session.commit()
+    session.refresh(b)
+    return b
 
-def get_books(writer: str = ""):
+def get_books(session: Session, writer: str = ""):
     if writer != "":
-        return [b for b in books if b["writer"] == writer]
-    return books
+        return session.exec(select(BookDb).where(BookDb.writer == writer)).all()
+    return session.exec(select(BookDb)).all()
 
-def get_book_by_id(book_id: int):
-    b = [b for b in books if b['id'] == book_id]
-    if len(b) != 0:
-        return b[0]
-    else:
+def get_book_by_id(session: Session, book_id: int):
+    b = session.get(BookDb, book_id)
+    if not b:
         raise HTTPException(
             detail=f"Book {book_id} not found.", status_code=status.HTTP_404_NOT_FOUND
         )
+    return b
     
-def delete_book(book_id: int):
-    b = [b for b in books if b['id'] == book_id]
-    if len(b) != 0:
-        del books[book_id]
-        return {"message": f"Book {book_id} deleted."}
-    else:
+def delete_book(session: Session, book_id: int):
+    b = session.get(BookDb, book_id)
+    if not b:
         raise HTTPException(
             detail=f"Book {book_id} not found.", status_code=status.HTTP_404_NOT_FOUND
         )
+    return {"message": f"book {book_id} deleted"}
